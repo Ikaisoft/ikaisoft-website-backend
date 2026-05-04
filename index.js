@@ -15,6 +15,8 @@ app.use(cors({
     " http://localhost:8080",
     "https://ikaisoft.com"
   ],
+  methods:["POST"],
+  credentials: true,
 }));
 app.use(express.json());
 
