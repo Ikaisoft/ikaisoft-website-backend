@@ -9,7 +9,13 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    " http://localhost:8080",
+    "https://ikaisoft.com"
+  ],
+}));
 app.use(express.json());
 
 // DB Connection
