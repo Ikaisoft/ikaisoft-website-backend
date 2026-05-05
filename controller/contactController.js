@@ -10,9 +10,7 @@ const sendContactMail = async (req, res) => {
 
     // SMTP transporter
     const transporter = nodemailer.createTransport({
-      host: "mail.ikaisoft.com",
-      port: 587,
-      secure: false,
+      service: "gmail",
       family: 4,
       auth: {
         user: "info@ikaisoft.com",
