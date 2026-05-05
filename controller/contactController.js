@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import Contact from "../models/Contact.js";
 
- const sendContactMail = async (req, res) => {
+const sendContactMail = async (req, res) => {
   const { name, email, phone, message } = req.body;
 
   try {
@@ -10,9 +10,9 @@ import Contact from "../models/Contact.js";
 
     // SMTP transporter
     const transporter = nodemailer.createTransport({
-      host: "mail.ikaisoft.com", 
-      port: 465,
-      secure: true,
+      host: "mail.ikaisoft.com",
+      port: 587,
+      secure: false,
       family: 4,
       auth: {
         user: "info@ikaisoft.com",
