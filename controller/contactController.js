@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+
 import Contact from "../models/Contact.js";
 import { Resend } from "resend";
 
@@ -13,7 +13,7 @@ const sendContactMail = async (req, res) => {
 
     // Send email
     await resend.emails.send({
-      from: "onboarding@resend.dev", // later replace with your domain
+      from: "info@ikaisoft.com",
       to: "info@ikaisoft.com",
       reply_to: email,
       subject: `New Contact Form - ${name}`,
