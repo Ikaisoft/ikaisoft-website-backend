@@ -13,8 +13,8 @@ const sendContactMail = async (req, res) => {
 
     // Send email
     await resend.emails.send({
-      from: "onboarding@resend.dev",
-      to: "ikaisoft10@gmail.com",
+      from: "Ikaisoft <info@ikaisoft.com>",
+      to: "info@ikaisoft.com",
       reply_to: email,
       subject: `New Contact Form - ${name}`,
       html: `
