@@ -1,28 +1,21 @@
 import nodemailer from "nodemailer";
 import Contact from "../models/Contact.js";
+import { Resend } from "resend";
 
 const sendContactMail = async (req, res) => {
   const { name, email, phone, message } = req.body;
 
   try {
     // Save to DB
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
     await Contact.create({ name, email, phone, message });
 
-    // SMTP transporter
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      family: 4,
-      auth: {
-        user: "info@ikaisoft.com",
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
     // Send email
-    await transporter.sendMail({
-      from: `"Website Contact" <info@ikaisoft.com>`,
+    await resend.emails.send({
+      from: "onboarding@resend.dev", // later replace with your domain
       to: "info@ikaisoft.com",
-      replyTo: email,
+      reply_to: email,
       subject: `New Contact Form - ${name}`,
       html: `
         <h3>New Contact Message</h3>
@@ -33,16 +26,10 @@ const sendContactMail = async (req, res) => {
       `,
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Message sent successfully",
-    });
+    res.status(200).json({ success: true });
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to send message",
-    });
+    console.error(error);
+    res.status(500).json({ success: false });
   }
 };
 export default sendContactMail;
