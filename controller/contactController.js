@@ -3,25 +3,26 @@ import Contact from "../models/Contact.js";
 import { Resend } from "resend";
 
 const sendContactMail = async (req, res) => {
-  const { name, email, phone, message } = req.body;
+  const { name, email, phone,service, message } = req.body;
 
   try {
     // Save to DB
     const resend = new Resend(process.env.RESEND_API_KEY);
 
-    await Contact.create({ name, email, phone, message });
+    await Contact.create({ name, email, phone, service, message });
 
     // Send email
     await resend.emails.send({
       from: "Ikaisoft <info@ikaisoft.com>",
       to: "info@ikaisoft.com",
       reply_to: email,
-      subject: `New Contact Form - ${name}`,
+      subject: `New Enquiry Form - ${name}`,
       html: `
-        <h3>New Contact Message</h3>
+        <h3>New Enquiry Message</h3>
         <p><b>Name:</b> ${name}</p>
         <p><b>Email:</b> ${email}</p>
         <p><b>Phone:</b> ${phone}</p>
+        <p><b>Service:</b> ${service}</p>
         <p><b>Message:</b> ${message}</p>
       `,
     });
