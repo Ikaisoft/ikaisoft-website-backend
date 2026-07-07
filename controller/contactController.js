@@ -27,10 +27,13 @@ const sendContactMail = async (req, res) => {
       `,
     });
 
-    res.status(200).json({ success: true });
+    res.status(200).json({ 
+      success: true ,
+      message: "Your request has been booked successfully. Our team will contact you within 48 hours."
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, message: "An error occurred while processing your request." });
   }
 };
 export default sendContactMail;
