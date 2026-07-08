@@ -14,7 +14,7 @@ const sendContactMail = async (req, res) => {
     // Send email
     await resend.emails.send({
       from: "Ikaisoft <contact@ikaisoft.com>",
-      to: "info@ikaisoft.com",
+      to: "contact@ikaisoft.com",
       reply_to: email,
       subject: `New Enquiry Form - ${name}`,
       html: `
