@@ -12,8 +12,8 @@ const sendEnrollForm = async (req, res) => {
 
     // Send Email
     await resend.emails.send({
-      from: "Ikaisoft <info@ikaisoft.com>", 
-      to: "info@ikaisoft.com",
+      from: "onboarding@resend.dev", 
+      to: "contact@ikaisoft.com",
       reply_to: email,
       subject: `New Enrollment - ${name}`,
       html: `
