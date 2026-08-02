@@ -18,8 +18,8 @@ const sendRegistrationMail = async (req, res) => {
 
         // Send email
         await resend.emails.send({
-            from: "Ikaisoft <contact@ikaisoft.com>",
-            to: "contact@ikaisoft.com",
+            from: "Ikaisoft <ikaisoftenquiry@gmail.com>",
+            to: "ikaisoftenquiry@gmail.com",
             reply_to: email,
             subject: `New Enquiry Form - ${name}`,
             html: `
@@ -53,7 +53,7 @@ const sendRegistrationMail = async (req, res) => {
         });
 
         await resend.emails.send({
-            from: "Ikaisoft <contact@ikaisoft.com>",
+            from: "Ikaisoft <ikaisoftenquiry@gmail.com>",
             to: email,
             subject: `Confirmation of Registration, ${name}`,
             html: `
