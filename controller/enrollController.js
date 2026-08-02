@@ -20,8 +20,8 @@ const sendEnrollForm = async (req, res) => {
 
     // Send notification email to admin
     await resend.emails.send({
-      from: "Ikaisoft <ikaisoftenquiry@gmail.com>",
-      to: "ikaisoftenquiry@gmail.com",
+      from: "Ikaisoft <contact@ikaisoft.com>",
+      to: "contact@ikaisoft.com",
       reply_to: email,
       subject: `New Course Enrollment - ${name}`,
       html: `
@@ -56,7 +56,7 @@ const sendEnrollForm = async (req, res) => {
 
     // Send confirmation email to the user
     await resend.emails.send({
-      from: "Ikaisoft <ikaisoftenquiry@gmail.com>",
+      from: "Ikaisoft <contact@ikaisoft.com>",
       to: email,
       subject: `Enrollment Confirmation - ${course} | Ikaisoft`,
       html: `
@@ -74,7 +74,7 @@ const sendEnrollForm = async (req, res) => {
         </p>
         <div style="background:#f0fdf4; border-left:4px solid #229920; padding:16px; margin:24px 0; border-radius:0 8px 8px 0;">
             <p style="margin:0; font-size:14px; color:#166534;">
-                📞 If you have any urgent questions, feel free to reach us at <a href="mailto:ikaisoftenquiry@gmail.com" style="color:#229920;">ikaisoftenquiry@gmail.com</a>
+                📞 If you have any urgent questions, feel free to reach us at <a href="mailto:contact@ikaisoft.com" style="color:#229920;">contact@ikaisoft.com</a>
             </p>
         </div>
         <p style="font-size:15px; color:#4b5563;">Best regards,</p>
