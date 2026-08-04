@@ -17,13 +17,17 @@ export function buildCertificateNumberFromSequence(sequence, year = new Date().g
 }
 
 export function buildVerificationUrl(certificateNumber) {
-  const base = process.env.VERIFY_BASE_URL || "";
-  if (base) return `${base.replace(/\/$/, "")}/certificate.html?id=${encodeURIComponent(certificateNumber)}`;
-  return `/certificate.html?id=${encodeURIComponent(certificateNumber)}`;
+  const base = process.env.VERIFY_BASE_URL || process.env.BACKEND_ORIGIN || (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : 'https://ikaisoft.com');
+  return `${base.replace(/\/$/, "")}/certificate.html?id=${encodeURIComponent(certificateNumber)}`;
 }
 
 export function generateVerificationToken() {
   return uuidv4();
+}
+
+export async function generateVerificationQrBuffer(certificateNumber) {
+  const url = buildVerificationUrl(certificateNumber);
+  return qrcode.toBuffer(url, { type: "png", margin: 1, width: 220 });
 }
 
 function sanitizeFileName(value) {

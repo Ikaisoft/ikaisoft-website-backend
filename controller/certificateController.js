@@ -10,6 +10,7 @@ import {
   buildVerificationUrl,
   generateVerificationToken,
   generateCertificateArtifacts,
+  generateVerificationQrBuffer,
   deleteUploadIfExists,
 } from "../services/certificateService.js";
 import {
@@ -283,7 +284,7 @@ export const getCertificateByNumber = async (req, res) => {
 
     const origin = buildBackendOrigin(req);
     const pdfUrl = `${origin}/api/certificates/public/${encodeURIComponent(certificateNumber)}/download`;
-    const qrCodeUrl = record.qrCodeUrl ? `${origin}${record.qrCodeUrl}` : null;
+    const qrCodeUrl = `${origin}/api/certificate/${encodeURIComponent(certificateNumber)}/qr`;
 
     res.status(200).json({
       success: true,
@@ -299,13 +300,29 @@ export const getCertificateByNumber = async (req, res) => {
   }
 };
 
+export const getCertificateQr = async (req, res) => {
+  const { certificateNumber } = req.params;
+  try {
+    const record = await StudentCertificate.findOne({ certificateNumber }).lean();
+    if (!record) return res.status(404).send('Certificate not found.');
+
+    const buffer = await generateVerificationQrBuffer(certificateNumber);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(buffer);
+  } catch (error) {
+    console.error('Get Certificate QR Error:', error);
+    res.status(500).send('Server error.');
+  }
+};
+
 export const publicVerifyCertificate = async (req, res) => {
   const { certificateNumber } = req.params;
   try {
     const record = await StudentCertificate.findOne({ certificateNumber }).lean();
     if (!record) return res.status(404).send("Certificate not found.");
 
-    return res.redirect(301, `/certificate.html?id=${encodeURIComponent(certificateNumber)}`);
+    const origin = buildBackendOrigin(req);
+    return res.redirect(301, `${origin}/certificate.html?id=${encodeURIComponent(certificateNumber)}`);
   } catch (error) {
     console.error('Public Verify Error:', error);
     res.status(500).send('Server error.');
