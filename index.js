@@ -53,8 +53,8 @@ app.use("/api", jobRoutes);
 app.use("/api", courseRoutes);
 app.use("/api", certificateRoutes);
 
-// Serve certificate preview page from the backend root
-app.get('/certificate.html', (req, res) => {
+// Serve certificate preview page from the backend root and alias /certificate for QR/preview links
+app.get(['/certificate.html', '/certificate'], (req, res) => {
   res.sendFile(path.resolve(__dirname, '../certificate.html'));
 });
 

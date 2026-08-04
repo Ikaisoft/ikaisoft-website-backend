@@ -18,7 +18,7 @@ export function buildCertificateNumberFromSequence(sequence, year = new Date().g
 
 export function buildVerificationUrl(certificateNumber) {
   const base = process.env.VERIFY_BASE_URL || process.env.BACKEND_ORIGIN || (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : 'https://ikaisoft.com');
-  return `${base.replace(/\/$/, "")}/certificate.html?id=${encodeURIComponent(certificateNumber)}`;
+  return `${base.replace(/\/$/, "")}/certificate?id=${encodeURIComponent(certificateNumber)}`;
 }
 
 export function generateVerificationToken() {

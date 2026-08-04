@@ -322,7 +322,7 @@ export const publicVerifyCertificate = async (req, res) => {
     if (!record) return res.status(404).send("Certificate not found.");
 
     const origin = buildBackendOrigin(req);
-    return res.redirect(301, `${origin}/certificate.html?id=${encodeURIComponent(certificateNumber)}`);
+    return res.redirect(301, `${origin}/certificate?id=${encodeURIComponent(certificateNumber)}`);
   } catch (error) {
     console.error('Public Verify Error:', error);
     res.status(500).send('Server error.');
