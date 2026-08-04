@@ -53,7 +53,12 @@ app.use("/api", jobRoutes);
 app.use("/api", courseRoutes);
 app.use("/api", certificateRoutes);
 
-// Public verification page (used by QR links)
+// Serve certificate preview page from the backend root
+app.get('/certificate.html', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../certificate.html'));
+});
+
+// Public verification page (used by old QR links)
 app.get('/verify/:certificateNumber', publicVerifyCertificate);
 
 // Server

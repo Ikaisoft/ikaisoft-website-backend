@@ -282,7 +282,7 @@ export const getCertificateByNumber = async (req, res) => {
     }
 
     const origin = buildBackendOrigin(req);
-    const pdfUrl = record.pdfUrl ? `${origin}${record.pdfUrl}` : null;
+    const pdfUrl = `${origin}/api/certificates/public/${encodeURIComponent(certificateNumber)}/download`;
     const qrCodeUrl = record.qrCodeUrl ? `${origin}${record.qrCodeUrl}` : null;
 
     res.status(200).json({
@@ -305,14 +305,7 @@ export const publicVerifyCertificate = async (req, res) => {
     const record = await StudentCertificate.findOne({ certificateNumber }).lean();
     if (!record) return res.status(404).send("Certificate not found.");
 
-    const verifyUrl = buildVerificationUrl(certificateNumber);
-    const qrUrl = record.qrCodeUrl || `/uploads/certificates/${encodeURIComponent((record.studentName || 'certificate').toLowerCase().replace(/[^a-z0-9]+/g,'-'))}-${certificateNumber.toLowerCase()}.png`;
-    const pdfUrl = `/api/certificates/public/${encodeURIComponent(certificateNumber)}/download`;
-
-    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Certificate ${certificateNumber}</title><style>body{font-family:Arial,sans-serif;background:#f6fbf7;padding:24px} .card{max-width:900px;margin:20px auto;background:#fff;border:12px solid #144a21;border-radius:16px;padding:28px;color:#0f2a18} h1{color:#144a21} .meta{margin-top:10px;color:#334155} .qr{float:right}</style></head><body><div class="card"><div class="qr"><img src="${qrUrl}" width="160" height="160" alt="QR"></div><h1>CERTIFICATE OF COMPLETION</h1><p>This is to certify that</p><h2>${record.studentName}</h2><p>has successfully completed the <strong>${record.courseName}</strong> conducted by <strong>${record.college}</strong>.</p><p class="meta">Date: ${new Date(record.issuedDate || record.createdAt).toLocaleDateString()}</p><p class="meta">Certificate ID: ${certificateNumber}</p><p><a href="${pdfUrl}">Download PDF</a></p><p style="margin-top:32px;font-size:12px;color:#666">Verified at ${verifyUrl}</p></div></body></html>`;
-
-    res.setHeader('Content-Type','text/html');
-    res.send(html);
+    return res.redirect(301, `/certificate.html?id=${encodeURIComponent(certificateNumber)}`);
   } catch (error) {
     console.error('Public Verify Error:', error);
     res.status(500).send('Server error.');
