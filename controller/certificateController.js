@@ -272,7 +272,7 @@ export const publicVerifyCertificate = async (req, res) => {
 
     const verifyUrl = buildVerificationUrl(certificateNumber);
     const qrUrl = record.qrCodeUrl || `/uploads/certificates/${encodeURIComponent((record.studentName || 'certificate').toLowerCase().replace(/[^a-z0-9]+/g,'-'))}-${certificateNumber.toLowerCase()}.png`;
-    const pdfUrl = record.pdfUrl || `/uploads/certificates/${encodeURIComponent((record.studentName || 'certificate').toLowerCase().replace(/[^a-z0-9]+/g,'-'))}-${certificateNumber.toLowerCase()}.pdf`;
+    const pdfUrl = `/api/certificates/public/${encodeURIComponent(certificateNumber)}/download`;
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Certificate ${certificateNumber}</title><style>body{font-family:Arial,sans-serif;background:#f6fbf7;padding:24px} .card{max-width:900px;margin:20px auto;background:#fff;border:12px solid #144a21;border-radius:16px;padding:28px;color:#0f2a18} h1{color:#144a21} .meta{margin-top:10px;color:#334155} .qr{float:right}</style></head><body><div class="card"><div class="qr"><img src="${qrUrl}" width="160" height="160" alt="QR"></div><h1>CERTIFICATE OF COMPLETION</h1><p>This is to certify that</p><h2>${record.studentName}</h2><p>has successfully completed the <strong>${record.courseName}</strong> conducted by <strong>${record.college}</strong>.</p><p class="meta">Date: ${new Date(record.issuedDate || record.createdAt).toLocaleDateString()}</p><p class="meta">Certificate ID: ${certificateNumber}</p><p><a href="${pdfUrl}">Download PDF</a></p><p style="margin-top:32px;font-size:12px;color:#666">Verified at ${verifyUrl}</p></div></body></html>`;
 
@@ -382,6 +382,22 @@ export const downloadCertificatePdf = async (req, res) => {
   } catch (error) {
     console.error("Download Certificate PDF Error:", error);
     res.status(500).json({ success: false, message: "Server error." });
+  }
+};
+
+// Public download by certificate number (no auth) — used by QR/verify pages
+export const publicDownloadByCertificateNumber = async (req, res) => {
+  const { certificateNumber } = req.params;
+  try {
+    const certificate = await StudentCertificate.findOne({ certificateNumber });
+    if (!certificate) return res.status(404).send('Certificate not found.');
+    const filePath = toAbsolutePath(certificate.pdfUrl);
+    if (!filePath) return res.status(404).send('PDF not found.');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.download(filePath, `${certificate.certificateNumber}.pdf`);
+  } catch (error) {
+    console.error('Public Download Error:', error);
+    res.status(500).send('Server error.');
   }
 };
 
