@@ -18,8 +18,8 @@ export function buildCertificateNumberFromSequence(sequence, year = new Date().g
 
 export function buildVerificationUrl(certificateNumber) {
   const base = process.env.VERIFY_BASE_URL || "";
-  if (base) return `${base.replace(/\/$/, "")}/verify/${encodeURIComponent(certificateNumber)}`;
-  return `/verify/${encodeURIComponent(certificateNumber)}`;
+  if (base) return `${base.replace(/\/$/, "")}/certificate.html?id=${encodeURIComponent(certificateNumber)}`;
+  return `/certificate.html?id=${encodeURIComponent(certificateNumber)}`;
 }
 
 export function generateVerificationToken() {

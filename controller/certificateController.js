@@ -264,6 +264,41 @@ export const verifyCertificate = async (req, res) => {
   }
 };
 
+function buildBackendOrigin(req) {
+  if (process.env.BACKEND_ORIGIN) {
+    return process.env.BACKEND_ORIGIN.replace(/\/$/, "");
+  }
+  const proto = req.headers["x-forwarded-proto"] || req.protocol;
+  const host = req.headers["x-forwarded-host"] || req.get("host");
+  return `${proto}://${host}`;
+}
+
+export const getCertificateByNumber = async (req, res) => {
+  const { certificateNumber } = req.params;
+  try {
+    const record = await StudentCertificate.findOne({ certificateNumber }).lean();
+    if (!record) {
+      return res.status(404).json({ success: false, message: "Certificate not found." });
+    }
+
+    const origin = buildBackendOrigin(req);
+    const pdfUrl = record.pdfUrl ? `${origin}${record.pdfUrl}` : null;
+    const qrCodeUrl = record.qrCodeUrl ? `${origin}${record.qrCodeUrl}` : null;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...record,
+        pdfUrl,
+        qrCodeUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Get Certificate Error:", error);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+};
+
 export const publicVerifyCertificate = async (req, res) => {
   const { certificateNumber } = req.params;
   try {
