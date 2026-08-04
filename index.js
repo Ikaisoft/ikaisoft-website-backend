@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import cors from "cors";
 import dotenv from "dotenv";
 import connectDB from "./config/db.js";
@@ -8,6 +9,7 @@ import registrationRoutes from "./routes/registrationRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
+import certificateRoutes from "./routes/certificateRoutes.js";
 import seedAdmin from "./config/seedAdmin.js";
 
 dotenv.config();
@@ -26,6 +28,8 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // DB Connection
 connectDB().then(() => {
@@ -39,6 +43,7 @@ app.use("/api", registrationRoutes);
 app.use("/api", adminRoutes);
 app.use("/api", jobRoutes);
 app.use("/api", courseRoutes);
+app.use("/api", certificateRoutes);
 
 // Server
 const PORT = process.env.PORT || 5000;
