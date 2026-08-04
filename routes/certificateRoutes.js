@@ -11,6 +11,7 @@ import {
   updateCertificate,
   deleteCertificate,
   verifyCertificate,
+  publicVerifyCertificate,
   bulkImportCertificates,
   exportCertificates,
   downloadCertificatePdf,
@@ -22,6 +23,8 @@ import {
 const router = express.Router();
 
 router.get("/certificate/verify/:certificateNumber", verifyCertificate);
+// Public read-only verification route (accessible without auth)
+router.get("/verify/:certificateNumber", publicVerifyCertificate);
 
 router.get("/certificates", authMiddleware, getCertificates);
 router.post("/certificates", authMiddleware, createCertificate);

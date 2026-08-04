@@ -10,6 +10,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
+import { publicVerifyCertificate } from "./controller/certificateController.js";
 import seedAdmin from "./config/seedAdmin.js";
 
 dotenv.config();
@@ -44,6 +45,9 @@ app.use("/api", adminRoutes);
 app.use("/api", jobRoutes);
 app.use("/api", courseRoutes);
 app.use("/api", certificateRoutes);
+
+// Public verification page (used by QR links)
+app.get('/verify/:certificateNumber', publicVerifyCertificate);
 
 // Server
 const PORT = process.env.PORT || 5000;

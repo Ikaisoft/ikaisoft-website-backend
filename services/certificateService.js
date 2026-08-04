@@ -17,7 +17,9 @@ export function buildCertificateNumberFromSequence(sequence, year = new Date().g
 }
 
 export function buildVerificationUrl(certificateNumber) {
-  return `https://www.ikaisoft.com/verify/${encodeURIComponent(certificateNumber)}`;
+  const base = process.env.VERIFY_BASE_URL || "";
+  if (base) return `${base.replace(/\/$/, "")}/verify/${encodeURIComponent(certificateNumber)}`;
+  return `/verify/${encodeURIComponent(certificateNumber)}`;
 }
 
 export function generateVerificationToken() {
@@ -159,8 +161,10 @@ export async function generateCertificateArtifacts(student, certificateNumber) {
   const pdfPath = path.join(uploadsDir, `${fileName}.pdf`);
   const qrPath = path.join(uploadsDir, `${fileName}.png`);
 
+  const qrDataUrl = `data:image/png;base64,${qrBuffer.toString("base64")}`;
+
   try {
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><style>body{font-family:Arial,sans-serif;padding:40px;background:#f8fafc} .card{border:2px solid #1f6f3f;padding:24px;border-radius:16px;background:white} h1{color:#1f6f3f} .meta{margin-top:20px;color:#334155}</style></head><body><div class="card"><h1>Certificate of Completion</h1><p>This is to certify that <strong>${student.studentName}</strong></p><p>has completed the course <strong>${student.courseName}</strong>.</p><div class="meta">College: ${student.college || "N/A"}</div><div class="meta">Certificate Number: ${certificateNumber}</div><div class="meta">Issue Date: ${new Date(student.issuedDate || Date.now()).toLocaleDateString()}</div></div></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><style>body{font-family:Arial,sans-serif;padding:40px;background:#f8fafc} .card{border:2px solid #1f6f3f;padding:24px;border-radius:16px;background:white;position:relative} h1{color:#1f6f3f} .meta{margin-top:20px;color:#334155}.qr{position:absolute;right:24px;top:24px}</style></head><body><div class="card"><div class="qr"><img src="${qrDataUrl}" width="160" height="160" alt="QR"></div><h1>Certificate of Completion</h1><p>This is to certify that <strong>${student.studentName}</strong></p><p>has completed the course <strong>${student.courseName}</strong>.</p><div class="meta">College: ${student.college || "N/A"}</div><div class="meta">Certificate Number: ${certificateNumber}</div><div class="meta">Issue Date: ${new Date(student.issuedDate || Date.now()).toLocaleDateString()}</div><p style="margin-top:24px;font-size:12px;color:#666">Verify at: ${qrUrl}</p></div></body></html>`;
     await createPdfWithPuppeteer(html, pdfPath);
   } catch (error) {
     console.warn("Puppeteer PDF fallback used:", error.message);
