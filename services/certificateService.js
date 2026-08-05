@@ -13,7 +13,7 @@ const uploadsDir = path.resolve(__dirname, "../uploads/certificates");
 await fs.mkdir(uploadsDir, { recursive: true });
 
 export function buildCertificateNumberFromSequence(sequence, year = new Date().getFullYear()) {
-  return `IKA-${year}-${String(sequence).padStart(6, "0")}`;
+  return `ICS-${year}-${String(sequence).padStart(6, "0")}`;
 }
 
 export function buildVerificationUrl(certificateNumber) {
