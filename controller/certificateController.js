@@ -2,10 +2,12 @@ import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
 import ExcelJS from "exceljs";
-import archiver from "archiver";
+import { createRequire } from "module";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import College from "../models/College.js";
 import StudentCertificate from "../models/StudentCertificate.js";
+const require = createRequire(import.meta.url);
+const archiver = require("archiver");
 import {
   buildCertificateNumberFromSequence,
   buildVerificationUrl,
