@@ -378,7 +378,7 @@ export const bulkImportCertificates = async (req, res) => {
 
 export const exportCertificates = async (req, res) => {
   try {
-    const certificates = await StudentCertificate.find().sort({ createdAt: -1 });
+    const certificates = await StudentCertificate.find().sort({ certificateNumber: 1 });
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Certificates");
     sheet.columns = [
@@ -416,7 +416,7 @@ export const exportCertificates = async (req, res) => {
 
 export const exportCertificatesPdf = async (req, res) => {
   try {
-    const certificates = await StudentCertificate.find().sort({ createdAt: -1 });
+    const certificates = await StudentCertificate.find().sort({ certificateNumber: 1 });
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
