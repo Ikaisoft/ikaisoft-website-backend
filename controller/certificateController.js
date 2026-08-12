@@ -2,7 +2,8 @@ import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
 import ExcelJS from "exceljs";
-import { ZipArchive } from "archiver";
+import archiver from "archiver";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import College from "../models/College.js";
 import StudentCertificate from "../models/StudentCertificate.js";
 import {
@@ -160,7 +161,7 @@ export const getCertificates = async (req, res) => {
   try {
     const total = await StudentCertificate.countDocuments(filter);
     const data = await StudentCertificate.find(filter)
-      .sort({ createdAt: -1 })
+      .sort({ certificateNumber: 1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));
 
@@ -381,23 +382,25 @@ export const exportCertificates = async (req, res) => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Certificates");
     sheet.columns = [
-      { header: "Student Name", key: "studentName", width: 24 },
-      { header: "Email", key: "email", width: 24 },
-      { header: "College", key: "college", width: 24 },
-      { header: "Course", key: "courseName", width: 24 },
+      { header: "Student Name", key: "studentName", width: 28 },
       { header: "Certificate Number", key: "certificateNumber", width: 24 },
-      { header: "Verification URL", key: "verificationUrl", width: 40 },
-      { header: "Status", key: "status", width: 16 },
+      { header: "Course", key: "courseName", width: 24 },
+      { header: "College", key: "college", width: 24 },
+      { header: "QR Code URL", key: "qrCodeUrl", width: 48 },
+      { header: "Verification URL", key: "verificationUrl", width: 48 },
+      { header: "Issued Date", key: "issuedDate", width: 18 },
+      { header: "Status", key: "status", width: 14 },
     ];
 
     certificates.forEach((certificate) => {
       sheet.addRow({
         studentName: certificate.studentName,
-        email: certificate.email,
-        college: certificate.college,
-        courseName: certificate.courseName,
         certificateNumber: certificate.certificateNumber,
+        courseName: certificate.courseName,
+        college: certificate.college,
+        qrCodeUrl: buildVerificationUrl(certificate.certificateNumber),
         verificationUrl: buildVerificationUrl(certificate.certificateNumber),
+        issuedDate: certificate.issuedDate ? new Date(certificate.issuedDate).toLocaleDateString() : "",
         status: certificate.status,
       });
     });
@@ -407,6 +410,111 @@ export const exportCertificates = async (req, res) => {
     await workbook.xlsx.write(res);
   } catch (error) {
     console.error("Export Certificates Error:", error);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+};
+
+export const exportCertificatesPdf = async (req, res) => {
+  try {
+    const certificates = await StudentCertificate.find().sort({ createdAt: -1 });
+    const pdfDoc = await PDFDocument.create();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const pageWidth = 850;
+    const pageHeight = 1100;
+
+    let page = pdfDoc.addPage([pageWidth, pageHeight]);
+    let y = pageHeight - 50;
+
+    page.drawText("Certificates Export", {
+      x: 40,
+      y,
+      size: 24,
+      font: boldFont,
+    });
+
+    y -= 28;
+    page.drawText(`Generated: ${new Date().toLocaleString()}`, {
+      x: 40,
+      y,
+      size: 10,
+      font,
+    });
+
+    y -= 26;
+
+    for (const certificate of certificates) {
+      if (y < 160) {
+        page = pdfDoc.addPage([pageWidth, pageHeight]);
+        y = pageHeight - 50;
+      }
+
+      page.drawText(`Student Name: ${certificate.studentName || "N/A"}`, {
+        x: 40,
+        y,
+        size: 11,
+        font,
+      });
+      y -= 16;
+
+      page.drawText(`Certificate Number: ${certificate.certificateNumber || "N/A"}`, {
+        x: 40,
+        y,
+        size: 11,
+        font,
+      });
+      y -= 16;
+
+      page.drawText(`Course: ${certificate.courseName || "N/A"}`, {
+        x: 40,
+        y,
+        size: 11,
+        font,
+      });
+      y -= 16;
+
+      page.drawText(`College: ${certificate.college || "N/A"}`, {
+        x: 40,
+        y,
+        size: 11,
+        font,
+      });
+      y -= 16;
+
+        page.drawText(`QR Code: ${buildVerificationUrl(certificate.certificateNumber)}`, {
+        x: 40,
+        y,
+        size: 10,
+        font,
+      });
+      y -= 16;
+
+      page.drawText(`Course: ${certificate.courseName || "N/A"}`, {
+        x: 40,
+        y,
+        size: 10,
+        font,
+      });
+      y -= 16;
+
+      page.drawText(`College: ${certificate.college || "N/A"}`, {
+        x: 40,
+        y,
+        size: 10,
+        font,
+      });
+      y -= 24;
+
+      page.drawLine({ start: { x: 40, y }, end: { x: pageWidth - 40, y }, color: rgb(0.75, 0.75, 0.75), thickness: 0.5 });
+      y -= 18;
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "attachment; filename=certificates-export.pdf");
+    res.send(Buffer.from(pdfBytes));
+  } catch (error) {
+    console.error("Export Certificates PDF Error:", error);
     res.status(500).json({ success: false, message: "Server error." });
   }
 };
@@ -455,7 +563,8 @@ export const downloadAllCertificatesZip = async (req, res) => {
 
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", "attachment; filename=all-certificates.zip");
-    const archive = new ZipArchive();
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
     archive.on("error", (error) => {
       throw error;
     });

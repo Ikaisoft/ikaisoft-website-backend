@@ -17,6 +17,7 @@ import {
   publicDownloadByCertificateNumber,
   bulkImportCertificates,
   exportCertificates,
+  exportCertificatesPdf,
   downloadCertificatePdf,
   downloadAllCertificatesZip,
   regenerateCertificate,
@@ -42,6 +43,7 @@ router.post("/certificates/:id/regenerate", authMiddleware, regenerateCertificat
 router.post("/certificates/:id/qr", authMiddleware, regenerateQr);
 router.post("/certificates/import", authMiddleware, upload.single("file"), bulkImportCertificates);
 router.get("/certificates/export", authMiddleware, exportCertificates);
+router.get("/certificates/export/pdf", authMiddleware, exportCertificatesPdf);
 router.get("/certificates/download-all", authMiddleware, downloadAllCertificatesZip);
 
 router.get("/colleges", authMiddleware, getColleges);
