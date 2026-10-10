@@ -279,26 +279,122 @@ function buildBackendOrigin(req) {
 
 export const getCertificateByNumber = async (req, res) => {
   const { certificateNumber } = req.params;
+  const { email } = req.query;
   try {
-    const record = await StudentCertificate.findOne({ certificateNumber }).lean();
+    const record = await StudentCertificate.findOne({
+      certificateNumber: { $regex: new RegExp(`^${String(certificateNumber).trim()}$`, "i") },
+    }).lean();
     if (!record) {
       return res.status(404).json({ success: false, message: "Certificate not found." });
     }
 
     const origin = buildBackendOrigin(req);
-    const pdfUrl = `${origin}/api/certificates/public/${encodeURIComponent(certificateNumber)}/download`;
-    const qrCodeUrl = `${origin}/api/certificate/${encodeURIComponent(certificateNumber)}/qr`;
+    const pdfUrl = `${origin}/api/certificates/public/${encodeURIComponent(record.certificateNumber)}/download?email=${encodeURIComponent(record.email || "")}`;
+    const qrCodeUrl = `${origin}/api/certificate/${encodeURIComponent(record.certificateNumber)}/qr`;
+
+    if (email) {
+      const studentEmail = (record.email || "").toLowerCase().trim();
+      const inputEmail = String(email).toLowerCase().trim();
+      if (studentEmail !== inputEmail) {
+        return res.status(403).json({
+          success: false,
+          message: "Email address does not match this certificate record.",
+        });
+      }
+
+      const allCerts = await StudentCertificate.find({
+        email: { $regex: new RegExp(`^${studentEmail}$`, "i") },
+      }).sort({ issuedDate: -1, createdAt: -1 }).lean();
+
+      const formattedCertificates = allCerts.map((c) => ({
+        ...c,
+        pdfUrl: `${origin}/api/certificates/public/${encodeURIComponent(c.certificateNumber)}/download?email=${encodeURIComponent(c.email || "")}`,
+        qrCodeUrl: `${origin}/api/certificate/${encodeURIComponent(c.certificateNumber)}/qr`,
+        verificationUrl: buildVerificationUrl(c.certificateNumber),
+      }));
+
+      const currentCert = formattedCertificates.find(
+        (c) => c.certificateNumber.toLowerCase() === record.certificateNumber.toLowerCase()
+      ) || formattedCertificates[0];
+
+      return res.status(200).json({
+        success: true,
+        verified: true,
+        data: currentCert,
+        certificates: formattedCertificates,
+      });
+    }
 
     res.status(200).json({
       success: true,
+      requiresVerification: true,
       data: {
-        ...record,
-        pdfUrl,
-        qrCodeUrl,
+        certificateNumber: record.certificateNumber,
+        requiresEmail: true,
       },
     });
   } catch (error) {
     console.error("Get Certificate Error:", error);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+};
+
+export const verifyCertificateAccess = async (req, res) => {
+  const certificateNumber = req.params.certificateNumber || req.body.certificateNumber;
+  const { email } = req.body;
+
+  if (!certificateNumber || !String(certificateNumber).trim()) {
+    return res.status(400).json({ success: false, message: "Certificate number is required." });
+  }
+  if (!email || !String(email).trim()) {
+    return res.status(400).json({ success: false, message: "Email address is required." });
+  }
+
+  try {
+    const record = await StudentCertificate.findOne({
+      certificateNumber: { $regex: new RegExp(`^${String(certificateNumber).trim()}$`, "i") },
+    }).lean();
+
+    if (!record) {
+      return res.status(404).json({ success: false, message: "Certificate not found with this ID." });
+    }
+
+    const studentEmail = (record.email || "").toLowerCase().trim();
+    const inputEmail = String(email).toLowerCase().trim();
+
+    if (studentEmail !== inputEmail) {
+      return res.status(403).json({
+        success: false,
+        message: "Email address does not match this certificate record.",
+      });
+    }
+
+    const origin = buildBackendOrigin(req);
+
+    const allCerts = await StudentCertificate.find({
+      email: { $regex: new RegExp(`^${studentEmail}$`, "i") },
+    }).sort({ issuedDate: -1, createdAt: -1 }).lean();
+
+    const formattedCertificates = allCerts.map((c) => ({
+      ...c,
+      pdfUrl: `${origin}/api/certificates/public/${encodeURIComponent(c.certificateNumber)}/download?email=${encodeURIComponent(c.email || "")}`,
+      qrCodeUrl: `${origin}/api/certificate/${encodeURIComponent(c.certificateNumber)}/qr`,
+      verificationUrl: buildVerificationUrl(c.certificateNumber),
+    }));
+
+    const currentCert = formattedCertificates.find(
+      (c) => c.certificateNumber.toLowerCase() === record.certificateNumber.toLowerCase()
+    ) || formattedCertificates[0];
+
+    return res.status(200).json({
+      success: true,
+      message: "Certificate verified successfully.",
+      verified: true,
+      data: currentCert,
+      certificates: formattedCertificates,
+    });
+  } catch (error) {
+    console.error("Verify Certificate Access Error:", error);
     res.status(500).json({ success: false, message: "Server error." });
   }
 };
@@ -540,19 +636,26 @@ export const downloadCertificatePdf = async (req, res) => {
   }
 };
 
-// Public download by certificate number (no auth) — used by QR/verify pages
 export const publicDownloadByCertificateNumber = async (req, res) => {
   const { certificateNumber } = req.params;
+  const { email } = req.query;
   try {
-    const certificate = await StudentCertificate.findOne({ certificateNumber });
-    if (!certificate) return res.status(404).send('Certificate not found.');
+    const certificate = await StudentCertificate.findOne({
+      certificateNumber: { $regex: new RegExp(`^${String(certificateNumber).trim()}$`, "i") },
+    });
+    if (!certificate) return res.status(404).send("Certificate not found.");
+
+    if (email && (certificate.email || "").toLowerCase().trim() !== String(email).toLowerCase().trim()) {
+      return res.status(403).send("Email address does not match this certificate record.");
+    }
+
     const filePath = toAbsolutePath(certificate.pdfUrl);
-    if (!filePath) return res.status(404).send('PDF not found.');
-    res.setHeader('Content-Type', 'application/pdf');
+    if (!filePath) return res.status(404).send("PDF not found.");
+    res.setHeader("Content-Type", "application/pdf");
     res.download(filePath, `${certificate.certificateNumber}.pdf`);
   } catch (error) {
-    console.error('Public Download Error:', error);
-    res.status(500).send('Server error.');
+    console.error("Public Download Error:", error);
+    res.status(500).send("Server error.");
   }
 };
 
