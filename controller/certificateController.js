@@ -259,7 +259,7 @@ export const verifyCertificate = async (req, res) => {
       success: true,
       data: {
         ...record,
-        verificationUrl: buildVerificationUrl(certificateNumber),
+        verificationUrl: buildVerificationUrl(),
       },
     });
   } catch (error) {
@@ -290,7 +290,7 @@ export const getCertificateByNumber = async (req, res) => {
 
     const origin = buildBackendOrigin(req);
     const pdfUrl = `${origin}/api/certificates/public/${encodeURIComponent(record.certificateNumber)}/download?email=${encodeURIComponent(record.email || "")}`;
-    const qrCodeUrl = `${origin}/api/certificate/${encodeURIComponent(record.certificateNumber)}/qr`;
+    const qrCodeUrl = `${origin}/api/certificate/qr`;
 
     if (email) {
       const studentEmail = (record.email || "").toLowerCase().trim();
@@ -309,8 +309,8 @@ export const getCertificateByNumber = async (req, res) => {
       const formattedCertificates = allCerts.map((c) => ({
         ...c,
         pdfUrl: `${origin}/api/certificates/public/${encodeURIComponent(c.certificateNumber)}/download?email=${encodeURIComponent(c.email || "")}`,
-        qrCodeUrl: `${origin}/api/certificate/${encodeURIComponent(c.certificateNumber)}/qr`,
-        verificationUrl: buildVerificationUrl(c.certificateNumber),
+        qrCodeUrl: `${origin}/api/certificate/qr`,
+        verificationUrl: buildVerificationUrl(),
       }));
 
       const currentCert = formattedCertificates.find(
@@ -378,8 +378,8 @@ export const verifyCertificateAccess = async (req, res) => {
     const formattedCertificates = allCerts.map((c) => ({
       ...c,
       pdfUrl: `${origin}/api/certificates/public/${encodeURIComponent(c.certificateNumber)}/download?email=${encodeURIComponent(c.email || "")}`,
-      qrCodeUrl: `${origin}/api/certificate/${encodeURIComponent(c.certificateNumber)}/qr`,
-      verificationUrl: buildVerificationUrl(c.certificateNumber),
+      qrCodeUrl: `${origin}/api/certificate/qr`,
+      verificationUrl: buildVerificationUrl(),
     }));
 
     const currentCert = formattedCertificates.find(
@@ -400,13 +400,10 @@ export const verifyCertificateAccess = async (req, res) => {
 };
 
 export const getCertificateQr = async (req, res) => {
-  const { certificateNumber } = req.params;
   try {
-    const record = await StudentCertificate.findOne({ certificateNumber }).lean();
-    if (!record) return res.status(404).send('Certificate not found.');
-
-    const buffer = await generateVerificationQrBuffer(certificateNumber);
+    const buffer = await generateVerificationQrBuffer();
     res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send(buffer);
   } catch (error) {
     console.error('Get Certificate QR Error:', error);
@@ -496,8 +493,8 @@ export const exportCertificates = async (req, res) => {
         certificateNumber: certificate.certificateNumber,
         courseName: certificate.courseName,
         college: certificate.college,
-        qrCodeUrl: buildVerificationUrl(certificate.certificateNumber),
-        verificationUrl: buildVerificationUrl(certificate.certificateNumber),
+        qrCodeUrl: `${buildBackendOrigin(req)}/api/certificate/qr`,
+        verificationUrl: buildVerificationUrl(),
         issuedDate: certificate.issuedDate ? new Date(certificate.issuedDate).toLocaleDateString() : "",
         status: certificate.status,
       });
@@ -579,7 +576,7 @@ export const exportCertificatesPdf = async (req, res) => {
       });
       y -= 16;
 
-        page.drawText(`QR Code: ${buildVerificationUrl(certificate.certificateNumber)}`, {
+        page.drawText(`Verification URL: ${buildVerificationUrl()}`, {
         x: 40,
         y,
         size: 10,

@@ -16,18 +16,34 @@ export function buildCertificateNumberFromSequence(sequence, year = new Date().g
   return `ICS-${year}-${String(sequence).padStart(6, "0")}`;
 }
 
-export function buildVerificationUrl(certificateNumber) {
+export function buildVerificationUrl(_certificateNumber) {
   const base = process.env.VERIFY_BASE_URL || process.env.BACKEND_ORIGIN || (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : 'https://ikaisoft.com');
-  return `${base.replace(/\/$/, "")}/certificate?id=${encodeURIComponent(certificateNumber)}`;
+  return `${base.replace(/\/$/, "")}/certificate`;
+}
+
+const genericQrFileName = "ikaisoft-generic-qr.png";
+const genericQrPath = path.join(uploadsDir, genericQrFileName);
+let genericQrCache = null;
+
+export async function getGenericQrBuffer() {
+  if (genericQrCache) return genericQrCache;
+  try {
+    genericQrCache = await fs.readFile(genericQrPath);
+    return genericQrCache;
+  } catch {
+    const url = buildVerificationUrl();
+    genericQrCache = await qrcode.toBuffer(url, { type: "png", margin: 1, width: 220 });
+    await fs.writeFile(genericQrPath, genericQrCache).catch(() => {});
+    return genericQrCache;
+  }
 }
 
 export function generateVerificationToken() {
   return uuidv4();
 }
 
-export async function generateVerificationQrBuffer(certificateNumber) {
-  const url = buildVerificationUrl(certificateNumber);
-  return qrcode.toBuffer(url, { type: "png", margin: 1, width: 220 });
+export async function generateVerificationQrBuffer(_certificateNumber) {
+  return await getGenericQrBuffer();
 }
 
 function sanitizeFileName(value) {
@@ -43,6 +59,7 @@ function getStoragePath(fileUrl) {
 }
 
 export async function deleteUploadIfExists(fileUrl) {
+  if (!fileUrl || fileUrl.includes("ikaisoft-generic-qr")) return;
   const storagePath = getStoragePath(fileUrl);
   if (!storagePath) return;
   try {
@@ -150,6 +167,13 @@ async function createPdfWithPdfLib(student, certificateNumber, qrBuffer, outputP
     color: rgb(0.25, 0.25, 0.25),
   });
   page.drawImage(qrImage, { x: 1100, y: 150, width: 120, height: 120 });
+  page.drawText("Scan to verify at /certificate", {
+    x: 1070,
+    y: 130,
+    size: 11,
+    font: regularFont,
+    color: rgb(0.35, 0.35, 0.35),
+  });
 
   const pdfBytes = await pdfDoc.save();
   await fs.writeFile(outputPath, pdfBytes);
@@ -157,8 +181,8 @@ async function createPdfWithPdfLib(student, certificateNumber, qrBuffer, outputP
 }
 
 export async function generateCertificateArtifacts(student, certificateNumber) {
-  const qrUrl = buildVerificationUrl(certificateNumber);
-  const qrBuffer = await qrcode.toBuffer(qrUrl, { type: "png", margin: 1, width: 220 });
+  const qrUrl = buildVerificationUrl();
+  const qrBuffer = await getGenericQrBuffer();
   const safeName = sanitizeFileName(student.studentName || "student");
   const fileName = `${safeName}-${certificateNumber.toLowerCase()}`;
 
@@ -168,17 +192,18 @@ export async function generateCertificateArtifacts(student, certificateNumber) {
   const qrDataUrl = `data:image/png;base64,${qrBuffer.toString("base64")}`;
 
   try {
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><style>body{font-family:Arial,sans-serif;padding:40px;background:#f8fafc} .card{border:2px solid #1f6f3f;padding:24px;border-radius:16px;background:white;position:relative} h1{color:#1f6f3f} .meta{margin-top:20px;color:#334155}.qr{position:absolute;right:24px;top:24px}</style></head><body><div class="card"><div class="qr"><img src="${qrDataUrl}" width="160" height="160" alt="QR"></div><h1>Certificate of Completion</h1><p>This is to certify that <strong>${student.studentName}</strong></p><p>has completed the course <strong>${student.courseName}</strong>.</p><div class="meta">College: ${student.college || "N/A"}</div><div class="meta">Certificate Number: ${certificateNumber}</div><div class="meta">Issue Date: ${new Date(student.issuedDate || Date.now()).toLocaleDateString()}</div><p style="margin-top:24px;font-size:12px;color:#666">Verify at: ${qrUrl}</p></div></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><style>body{font-family:Arial,sans-serif;padding:40px;background:#f8fafc} .card{border:2px solid #1f6f3f;padding:24px;border-radius:16px;background:white;position:relative} h1{color:#1f6f3f} .meta{margin-top:20px;color:#334155}.qr{position:absolute;right:24px;top:24px;text-align:center}.qr-text{font-size:10px;color:#666;margin-top:4px}</style></head><body><div class="card"><div class="qr"><img src="${qrDataUrl}" width="140" height="140" alt="QR"><div class="qr-text">Scan to verify at /certificate</div></div><h1>Certificate of Completion</h1><p>This is to certify that <strong>${student.studentName}</strong></p><p>has completed the course <strong>${student.courseName}</strong>.</p><div class="meta">College: ${student.college || "N/A"}</div><div class="meta">Certificate Number: ${certificateNumber}</div><div class="meta">Issue Date: ${new Date(student.issuedDate || Date.now()).toLocaleDateString()}</div><p style="margin-top:24px;font-size:12px;color:#666">Verify at: ${qrUrl}</p></div></body></html>`;
     await createPdfWithPuppeteer(html, pdfPath);
   } catch (error) {
     console.warn("Puppeteer PDF fallback used:", error.message);
     await createPdfWithPdfLib(student, certificateNumber, qrBuffer, pdfPath);
   }
 
-  await fs.writeFile(qrPath, qrBuffer);
+  await fs.writeFile(qrPath, qrBuffer).catch(() => {});
+  await fs.writeFile(genericQrPath, qrBuffer).catch(() => {});
 
   return {
-    qrCodeUrl: `/uploads/certificates/${path.basename(qrPath)}`,
+    qrCodeUrl: `/uploads/certificates/ikaisoft-generic-qr.png`,
     pdfUrl: `/uploads/certificates/${path.basename(pdfPath)}`,
   };
 }
