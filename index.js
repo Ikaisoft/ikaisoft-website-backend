@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import { fileURLToPath } from "url";
 import cors from "cors";
 import dotenv from "dotenv";
 import connectDB from "./config/db.js";
@@ -10,10 +11,13 @@ import adminRoutes from "./routes/adminRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
-import { publicVerifyCertificate } from "./controller/certificateController.js";
+import { publicVerifyCertificate, getCertificateQr } from "./controller/certificateController.js";
 import seedAdmin from "./config/seedAdmin.js";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -32,7 +36,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
   "/uploads",
-  express.static(path.join(process.cwd(), "uploads"), {
+  express.static(path.resolve(__dirname, "uploads"), {
     index: false,
     redirect: false,
     dotfiles: "deny",
@@ -52,6 +56,9 @@ app.use("/api", adminRoutes);
 app.use("/api", jobRoutes);
 app.use("/api", courseRoutes);
 app.use("/api", certificateRoutes);
+
+// Direct generic QR route available at root as well
+app.get(['/certificate/qr', '/api/certificate/qr'], getCertificateQr);
 
 // Serve certificate preview page from the backend root and alias /certificate for QR/preview links
 app.get(['/certificate.html', '/certificate'], (req, res) => {

@@ -34,8 +34,51 @@ function toAbsolutePath(fileUrl) {
 }
 
 async function ensureUniqueCertificateNumber(year) {
-  const count = await StudentCertificate.countDocuments({ certificateYear: year });
-  return buildCertificateNumberFromSequence(count + 1, year);
+  const prefix = `ICS-${year}-`;
+  const existing = await StudentCertificate.find(
+    { certificateNumber: { $regex: new RegExp(`^ICS-${year}-\\d+$`) } },
+    { certificateNumber: 1 }
+  ).lean();
+
+  let maxSeq = 0;
+  for (const item of existing) {
+    if (item.certificateNumber) {
+      const num = parseInt(item.certificateNumber.replace(prefix, ""), 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  }
+
+  let nextSeq = maxSeq + 1;
+  let candidate = buildCertificateNumberFromSequence(nextSeq, year);
+  while (await StudentCertificate.exists({ certificateNumber: candidate })) {
+    nextSeq += 1;
+    candidate = buildCertificateNumberFromSequence(nextSeq, year);
+  }
+  return candidate;
+}
+
+function extractCellValue(val) {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "string") return val.trim();
+  if (typeof val === "number" || typeof val === "boolean") return String(val).trim();
+  if (val instanceof Date) return val;
+  if (typeof val === "object") {
+    if (val.result !== undefined && val.result !== null) {
+      return extractCellValue(val.result);
+    }
+    if (val.text !== undefined && val.text !== null) {
+      return String(val.text).trim();
+    }
+    if (val.hyperlink) {
+      return String(val.hyperlink).replace(/^mailto:/i, "").trim();
+    }
+    if (Array.isArray(val.richText)) {
+      return val.richText.map((chunk) => chunk.text || "").join("").trim();
+    }
+  }
+  return String(val).trim();
 }
 
 async function generateCertificateRecord(payload, options = {}) {
@@ -427,47 +470,206 @@ export const publicVerifyCertificate = async (req, res) => {
 
 export const bulkImportCertificates = async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ success: false, message: "An Excel file is required." });
+    return res.status(400).json({ success: false, message: "An Excel file (.xlsx or .xls) is required." });
   }
 
   try {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(req.file.path);
-    const sheet = workbook.getWorksheet(1);
-    const created = [];
+    const sheet = workbook.worksheets[0];
 
-    if (!sheet) {
-      return res.status(400).json({ success: false, message: "The uploaded Excel file is empty." });
+    if (!sheet || sheet.rowCount === 0) {
+      await fs.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({ success: false, message: "The uploaded Excel file contains no sheets or data." });
     }
 
-    const rows = [];
-    sheet.eachRow({ includeEmpty: false }, (row) => rows.push(row.values.slice(1)));
-    rows.shift();
+    // 1. Find Header Row or detect columns
+    let headerRowIdx = -1;
+    const colMap = {};
 
-    for (const row of rows) {
-      const [studentName, email, phone, college, courseName, duration, completionDate, grade] = row;
+    sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      if (headerRowIdx !== -1) return;
+      const values = row.values;
+      if (!Array.isArray(values)) return;
+
+      const rowTexts = values.map(extractCellValue).map((v) => (typeof v === "string" ? v.toLowerCase().replace(/[^a-z0-9]/g, "") : ""));
+      const hasName = rowTexts.some((t) => t.includes("name") || t.includes("student") || t.includes("candidate"));
+      const hasEmail = rowTexts.some((t) => t.includes("email") || t.includes("mail"));
+
+      if (hasName || hasEmail) {
+        headerRowIdx = rowNumber;
+        values.forEach((cellVal, colIdx) => {
+          const raw = String(extractCellValue(cellVal) || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+          if (!raw) return;
+          if ((raw.includes("email") || raw.includes("mail")) && !colMap.email) {
+            colMap.email = colIdx;
+          } else if ((raw.includes("name") || raw.includes("student") || raw.includes("candidate")) && !colMap.studentName) {
+            colMap.studentName = colIdx;
+          } else if ((raw.includes("phone") || raw.includes("mobile") || raw.includes("contact")) && !colMap.phone) {
+            colMap.phone = colIdx;
+          } else if ((raw.includes("college") || raw.includes("university") || raw.includes("institute") || raw.includes("institution")) && !colMap.college) {
+            colMap.college = colIdx;
+          } else if ((raw.includes("course") || raw.includes("program") || raw.includes("training") || raw.includes("subject") || raw.includes("domain")) && !colMap.courseName) {
+            colMap.courseName = colIdx;
+          } else if ((raw.includes("duration") || raw.includes("period")) && !colMap.courseDuration) {
+            colMap.courseDuration = colIdx;
+          } else if ((raw.includes("completion") || raw.includes("enddate") || raw.includes("completed")) && !colMap.completionDate) {
+            colMap.completionDate = colIdx;
+          } else if ((raw.includes("issue") || raw.includes("date")) && !colMap.issuedDate) {
+            colMap.issuedDate = colIdx;
+          } else if ((raw.includes("grade") || raw.includes("score") || raw.includes("result") || raw.includes("marks")) && !colMap.grade) {
+            colMap.grade = colIdx;
+          } else if ((raw.includes("certificate") || raw.includes("certno") || raw.includes("certid")) && !colMap.certificateNumber) {
+            colMap.certificateNumber = colIdx;
+          }
+        });
+      }
+    });
+
+    const startRow = headerRowIdx === -1 ? 1 : headerRowIdx + 1;
+    const year = new Date().getFullYear();
+    const created = [];
+    const skipped = [];
+
+    // Pre-calculate starting sequence number for this year to make certificate numbers fast & sequential
+    const prefix = `ICS-${year}-`;
+    const existingCerts = await StudentCertificate.find(
+      { certificateNumber: { $regex: new RegExp(`^ICS-${year}-\\d+$`) } },
+      { certificateNumber: 1 }
+    ).lean();
+    let maxSeq = 0;
+    for (const c of existingCerts) {
+      if (c.certificateNumber) {
+        const num = parseInt(c.certificateNumber.replace(prefix, ""), 10);
+        if (!isNaN(num) && num > maxSeq) maxSeq = num;
+      }
+    }
+    let seqCounter = maxSeq + 1;
+
+    for (let r = startRow; r <= sheet.rowCount; r++) {
+      const row = sheet.getRow(r);
+      if (!row || !row.hasValues) continue;
+
+      let studentName = "";
+      let email = "";
+      let phone = "";
+      let college = "";
+      let courseName = "";
+      let courseDuration = "";
+      let completionDate = null;
+      let issuedDate = null;
+      let grade = "";
+      let customCertNum = "";
+
+      if (headerRowIdx !== -1) {
+        studentName = colMap.studentName ? extractCellValue(row.getCell(colMap.studentName).value) : "";
+        email = colMap.email ? extractCellValue(row.getCell(colMap.email).value) : "";
+        phone = colMap.phone ? extractCellValue(row.getCell(colMap.phone).value) : "";
+        college = colMap.college ? extractCellValue(row.getCell(colMap.college).value) : "";
+        courseName = colMap.courseName ? extractCellValue(row.getCell(colMap.courseName).value) : "";
+        courseDuration = colMap.courseDuration ? extractCellValue(row.getCell(colMap.courseDuration).value) : "";
+        completionDate = colMap.completionDate ? extractCellValue(row.getCell(colMap.completionDate).value) : null;
+        issuedDate = colMap.issuedDate ? extractCellValue(row.getCell(colMap.issuedDate).value) : null;
+        grade = colMap.grade ? extractCellValue(row.getCell(colMap.grade).value) : "";
+        customCertNum = colMap.certificateNumber ? extractCellValue(row.getCell(colMap.certificateNumber).value) : "";
+      }
+
+      // Fallback: If values missing or no mapped header, scan row cells intelligently
+      if (!studentName || !email) {
+        const rowCells = [];
+        row.eachCell({ includeEmpty: false }, (cell) => {
+          rowCells.push(extractCellValue(cell.value));
+        });
+
+        for (const cellVal of rowCells) {
+          const str = String(cellVal || "").trim();
+          if (!email && isValidEmail(str)) {
+            email = str;
+          } else if (!studentName && str.length > 1 && !/^\d+$/.test(str) && !isValidEmail(str)) {
+            studentName = str;
+          } else if (!college && (str.toLowerCase().includes("college") || str.toLowerCase().includes("institute") || str.toLowerCase().includes("university"))) {
+            college = str;
+          }
+        }
+      }
+
+      studentName = sanitizeText(studentName);
+      email = sanitizeEmail(email);
+
+      // Skip row if studentName or email is completely missing
+      if (!studentName || !email) {
+        skipped.push({ row: r, reason: "Missing student name or email", studentName, email });
+        continue;
+      }
+
+      if (!isValidEmail(email)) {
+        skipped.push({ row: r, reason: "Invalid email format", studentName, email });
+        continue;
+      }
+
+      // Generate unique certificate number
+      let certNumber = customCertNum ? sanitizeText(customCertNum) : "";
+      if (!certNumber || (await StudentCertificate.exists({ certificateNumber: certNumber }))) {
+        certNumber = buildCertificateNumberFromSequence(seqCounter++, year);
+        while (await StudentCertificate.exists({ certificateNumber: certNumber })) {
+          certNumber = buildCertificateNumberFromSequence(seqCounter++, year);
+        }
+      }
+
       const payload = {
-        studentName: sanitizeText(studentName || ""),
-        email: sanitizeEmail(email || ""),
+        studentName,
+        email,
         phone: sanitizeText(phone || ""),
-        courseName: sanitizeText(courseName || ""),
-        courseDuration: sanitizeText(duration || ""),
-        completionDate: completionDate ? new Date(completionDate) : null,
-        grade: sanitizeText(grade || ""),
-        college: sanitizeText(college || ""),
+        courseName: sanitizeText(courseName || req.body.courseName || "Professional Training Program"),
+        courseDuration: sanitizeText(courseDuration || req.body.courseDuration || "4 Weeks"),
+        college: sanitizeText(college || req.body.college || "Ikaisoft"),
+        grade: sanitizeText(grade || "A"),
+        completionDate: completionDate ? new Date(completionDate) : new Date(),
+        issuedDate: issuedDate ? new Date(issuedDate) : new Date(),
         status: "Issued",
+        certificateYear: year,
       };
-      const validation = validateStudentCertificatePayload(payload);
-      if (!validation.valid) continue;
-      const artifacts = await generateCertificateRecord(payload);
-      const certificate = await StudentCertificate.create({ ...payload, ...artifacts, certificateYear: new Date().getFullYear() });
+
+      const artifacts = await generateCertificateArtifacts({
+        studentName: payload.studentName,
+        courseName: payload.courseName,
+        college: payload.college,
+        issuedDate: payload.issuedDate,
+      }, certNumber);
+
+      const certificate = await StudentCertificate.create({
+        ...payload,
+        certificateNumber: certNumber,
+        verificationToken: generateVerificationToken(),
+        qrCodeUrl: artifacts.qrCodeUrl,
+        pdfUrl: artifacts.pdfUrl,
+      });
+
       created.push(certificate);
     }
 
-    res.status(200).json({ success: true, message: `${created.length} certificates imported successfully.`, data: created });
+    // Clean up uploaded file
+    await fs.unlink(req.file.path).catch(() => {});
+
+    if (created.length === 0 && skipped.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `No valid records imported. Skipped ${skipped.length} row(s). Please verify the sheet contains student Name and Email.`,
+        skipped,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully imported ${created.length} certificate(s).${skipped.length ? ` (${skipped.length} row(s) skipped)` : ""}`,
+      importedCount: created.length,
+      skippedCount: skipped.length,
+      data: created,
+    });
   } catch (error) {
+    if (req.file && req.file.path) await fs.unlink(req.file.path).catch(() => {});
     console.error("Bulk Import Certificates Error:", error);
-    res.status(500).json({ success: false, message: "Server error." });
+    res.status(500).json({ success: false, message: "Server error while processing Excel file: " + error.message });
   }
 };
 

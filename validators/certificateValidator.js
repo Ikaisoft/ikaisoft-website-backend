@@ -1,9 +1,14 @@
 export const sanitizeText = (value) => {
-  if (typeof value !== "string") return "";
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string") value = String(value);
   return value.trim().replace(/\s+/g, " ");
 };
 
-export const sanitizeEmail = (value) => sanitizeText(value).toLowerCase();
+export const sanitizeEmail = (value) => {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string") value = String(value);
+  return value.replace(/^mailto:/i, "").trim().toLowerCase();
+};
 
 export const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || "");
 
@@ -37,11 +42,10 @@ export const validateStudentCertificatePayload = (payload) => {
   const errors = [];
   const studentName = sanitizeText(payload.studentName);
   const email = sanitizeEmail(payload.email || "");
-  const courseName = sanitizeText(payload.courseName);
+  const courseName = sanitizeText(payload.courseName || "Professional Training Program");
 
   if (!studentName) errors.push("Student name is required.");
   if (!email || !isValidEmail(email)) errors.push("A valid student email is required.");
-  if (!courseName) errors.push("Course name is required.");
 
   return {
     valid: errors.length === 0,
@@ -51,10 +55,10 @@ export const validateStudentCertificatePayload = (payload) => {
       email,
       phone: sanitizeText(payload.phone || ""),
       courseName,
-      courseDuration: sanitizeText(payload.courseDuration || ""),
-      completionDate: payload.completionDate ? new Date(payload.completionDate) : null,
-      grade: sanitizeText(payload.grade || ""),
-      college: sanitizeText(payload.college || ""),
+      courseDuration: sanitizeText(payload.courseDuration || "4 Weeks"),
+      completionDate: payload.completionDate ? new Date(payload.completionDate) : new Date(),
+      grade: sanitizeText(payload.grade || "A"),
+      college: sanitizeText(payload.college || "Ikaisoft"),
       collegeId: payload.collegeId || null,
       status: payload.status || "Issued",
       issuedDate: payload.issuedDate ? new Date(payload.issuedDate) : new Date(),
